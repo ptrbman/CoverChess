@@ -1,5 +1,5 @@
 from fbs_runtime.application_context.PyQt5 import ApplicationContext, cached_property
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox, QAction, qApp
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot
 from PyQt5 import QtSvg
@@ -8,7 +8,7 @@ from player import *
 from board import Board
 import sys, random
 
-PLAYER_WHITE = True
+PLAYER_WHITE = False
 
 class MainWindow(QMainWindow):
     def __init__(self, ctx):
@@ -76,7 +76,7 @@ class AppContext(ApplicationContext):
         self.do_move(row, col)
 
     def minmax_move(self):
-        (row, col) = minmax(self.board, False, 2)
+        (row, col) = minmax(self.board, not PLAYER_WHITE, 2)
         self.do_move(row, col)
 
     def random_move(self):
@@ -108,9 +108,9 @@ class AppContext(ApplicationContext):
         self.board.reset()
         for r in range(self.rows):
             for c in range(self.cols):
-                self.buttons[r][c].setVisible(True)
                 if (self.pieces[r][c] != 0):
                     self.pieces[r][c].setVisible(False)
+                    self.buttons[r][c].setVisible(True)
         self.updateScores()
         self.grid.update()
         self.turns = 0
@@ -152,6 +152,15 @@ class AppContext(ApplicationContext):
 
         wid.setLayout(layout)
         self.main_window.setCentralWidget(wid)
+
+        quitAction = QAction("&Quit", self.main_window)
+        quitAction.setShortcut('Ctrl+Q')
+        quitAction.triggered.connect(qApp.quit)
+
+        menubar = self.main_window.menuBar()
+        fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(quitAction)
+
 
     def run(self):
         self.main_window.show()
