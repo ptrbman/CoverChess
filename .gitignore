@@ -1,0 +1,4 @@
+venv/
+.#install.sh
+src/main/python/__pycache__/
+target/
