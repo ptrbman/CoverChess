@@ -6,18 +6,19 @@ from PyQt5 import QtSvg
 
 from player import *
 from board import Board
-import sys, random
+
+import sys
 
 class MainWindow(QMainWindow):
     def __init__(self, ctx):
         super(MainWindow, self).__init__()
-        self.ctx = ctx 
+        self.ctx = ctx
 
 class ChangeBoardDialog(QDialog):
     def __init__(self, *args, **kwargs):
         super(ChangeBoardDialog, self).__init__(*args, **kwargs)
 
-        self.setWindowTitle("Hello!")
+        self.setWindowTitle("Change Board Size")
 
         self.width_input = QLineEdit()
         self.height_input = QLineEdit()
@@ -41,7 +42,6 @@ class AppContext(ApplicationContext):
     def main_window(self):
         return MainWindow(self)
 
-
     def initBoard(self):
         # We have to destroy old board if existing
         for bs in self.buttons:
@@ -49,7 +49,7 @@ class AppContext(ApplicationContext):
                 b.deleteLater()
         for ps in self.pieces:
             for p in ps:
-                if (p != 0):
+                if p != 0:
                     p.deleteLater()
 
         self.board = Board(self.rows, self.cols)
@@ -58,7 +58,6 @@ class AppContext(ApplicationContext):
         for r in range(self.rows):
             self.pieces.append([0 for _ in range(self.cols)])
             self.buttons.append([QPushButton("0") for _ in range(self.cols)])
-
 
 
     def __init__(self, rows, cols, max_turns):
@@ -74,21 +73,19 @@ class AppContext(ApplicationContext):
         self.max_turns = max_turns*2
         self.buttons = []
         self.pieces = []
- 
-
-        self.initBoard()
-
         self.turns = 0
         self.next_white = True
         self.player_white = True
 
+
+        self.initBoard()
         self.initUI()
         self.initBoardLayout()
 
 
     def do_move(self, row, col):
         self.turns += 1
-        if (self.next_white):
+        if self.next_white:
             self.next_white = False
             self.board.set_cell(row, col, -1)
             svgWidget = QtSvg.QSvgWidget(self.get_resource('images/white_rook.svg'))
@@ -98,16 +95,15 @@ class AppContext(ApplicationContext):
             svgWidget = QtSvg.QSvgWidget(self.get_resource('images/black_rook.svg'))
 
         self.pieces[row][col] = svgWidget
-        svgWidget.setGeometry(250,250,250,250)
         self.buttons[row][col].setVisible(False)
         self.grid.addWidget(svgWidget, row, col)
         self.updateScores()
         self.grid.update()
 
-        if (self.turns == self.max_turns):
+        if self.turns == self.max_turns:
             self.game_over()
 
-        if ((self.player_white and not self.next_white) or(not self.player_white and self.next_white)):
+        if (self.player_white and not self.next_white) or (not self.player_white and self.next_white):
             self.minmax_move()
 
 
@@ -122,7 +118,7 @@ class AppContext(ApplicationContext):
         moves = []
         for r in range(self.rows):
             for c in range(self.cols):
-                if (self.board.get_cell(r, c) == 0):
+                if self.board.get_cell(r, c) == 0:
                     moves.append((r, c))
         (r, c) = random.choice(moves)
         self.do_move(r, c)
@@ -131,9 +127,9 @@ class AppContext(ApplicationContext):
         score = self.board.get_final_score()
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
-        if (score > 0):
+        if score > 0:
             title = "Black wins!"
-        elif (score < 0):
+        elif score < 0:
             title = "White wins!"
         else:
             title = "Tie!"
@@ -144,11 +140,10 @@ class AppContext(ApplicationContext):
         self.reset()
 
     def reset(self):
-        print("Reset!")
         self.board.reset()
         for r in range(self.rows):
             for c in range(self.cols):
-                if (self.pieces[r][c] != 0):
+                if self.pieces[r][c] != 0:
                     self.pieces[r][c].setVisible(False)
                     self.buttons[r][c].setVisible(True)
         self.updateScores()
@@ -163,9 +158,9 @@ class AppContext(ApplicationContext):
                 score = self.board.get_score(r, c)
                 button = self.buttons[r][c]
                 button.setText(str(score))
-                if (score < 0):
+                if score < 0:
                     button.setStyleSheet("background-color: green")
-                elif (score > 0):
+                elif score > 0:
                     button.setStyleSheet("background-color: red")
                 else:
                     button.setStyleSheet("background-color: gray")
@@ -199,7 +194,6 @@ class AppContext(ApplicationContext):
         quitAction.setShortcut('Ctrl+Q')
         quitAction.triggered.connect(qApp.quit)
 
-
         whiteAction = QAction("&White", self.main_window)
         whiteAction.setShortcut('Ctrl+W')
         whiteAction.triggered.connect(lambda _ : self.set_player_color(True))
@@ -212,7 +206,6 @@ class AppContext(ApplicationContext):
 
         self.whiteAction = whiteAction
         self.blackAction = blackAction
-
 
         changeBoardAction = QAction("Change Board &Size", self.main_window)
         changeBoardAction.setShortcut('Ctrl+S')
@@ -227,15 +220,12 @@ class AppContext(ApplicationContext):
         playerColorMenu.addAction(whiteAction)
         playerColorMenu.addAction(blackAction)
 
-        if (self.player_white):
+        if self.player_white:
             whiteAction.setChecked(True)
         else:
             blackAction.setChecked(True)
 
         settingsMenu.addAction(changeBoardAction)
-
-
-
 
     def change_board_dialog(self):
         dlg = ChangeBoardDialog(self.main_window)
@@ -244,18 +234,18 @@ class AppContext(ApplicationContext):
         if dlg.exec_():
             newHeight = dlg.height_input.text()
             newWidth = dlg.width_input.text()
-            if (newHeight.isnumeric() and newWidth.isnumeric() and 0 < int(newHeight) and 0 < int(newWidth)):
-                print("New height/width: " + str((newHeight, newWidth)))
+            if newHeight.isnumeric() and newWidth.isnumeric() and 0 < int(newHeight) and 0 < int(newWidth):
                 self.rows = int(newHeight)
                 self.cols = int(newWidth)
                 self.initBoard()
                 self.initBoardLayout()
                 self.reset()
             else:
-                print("No change..")
-        else:
-            print("Fail")
-
+                msgBox = QMessageBox()
+                msgBox.setIcon(QMessageBox.Information)
+                msgBox.setText("Invalid board width/height!")
+                msgBox.setWindowTitle("Error")
+                msgBox.exec()
 
     def set_player_color(self, white):
         self.player_white = white
@@ -263,9 +253,8 @@ class AppContext(ApplicationContext):
         self.blackAction.setChecked(not white)
         self.check_computer_move()
 
-
     def check_computer_move(self):
-        if (self.player_white != self.next_white):
+        if self.player_white != self.next_white:
             self.minmax_move()
 
     def run(self):
