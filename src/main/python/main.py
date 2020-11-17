@@ -1,5 +1,5 @@
 from fbs_runtime.application_context.PyQt5 import ApplicationContext, cached_property
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox, QAction, qApp
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox, QAction, qApp, QDialogButtonBox, QLineEdit, QSizePolicy
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot
 from PyQt5 import QtSvg
@@ -13,11 +13,53 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.ctx = ctx 
 
+class ChangeBoardDialog(QDialog):
+    def __init__(self, *args, **kwargs):
+        super(ChangeBoardDialog, self).__init__(*args, **kwargs)
+
+        self.setWindowTitle("Hello!")
+
+        self.width_input = QLineEdit()
+        self.height_input = QLineEdit()
+
+        buttons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+
+        self.buttonBox = QDialogButtonBox(buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.width_input)
+        self.layout.addWidget(self.height_input)
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+
+
 class AppContext(ApplicationContext):
 
     @cached_property
     def main_window(self):
         return MainWindow(self)
+
+
+    def initBoard(self):
+        # We have to destroy old board if existing
+        for bs in self.buttons:
+            for b in bs:
+                b.deleteLater()
+        for ps in self.pieces:
+            for p in ps:
+                if (p != 0):
+                    p.deleteLater()
+
+        self.board = Board(self.rows, self.cols)
+        self.buttons = []
+        self.pieces = []
+        for r in range(self.rows):
+            self.pieces.append([0 for _ in range(self.cols)])
+            self.buttons.append([QPushButton("0") for _ in range(self.cols)])
+
+
 
     def __init__(self, rows, cols, max_turns):
         super().__init__()
@@ -30,20 +72,18 @@ class AppContext(ApplicationContext):
         self.rows = rows
         self.cols = cols
         self.max_turns = max_turns*2
-
-
-        self.turns = 0
-        self.board = Board(self.rows, self.cols)
         self.buttons = []
         self.pieces = []
+ 
+
+        self.initBoard()
+
+        self.turns = 0
         self.next_white = True
         self.player_white = True
 
-        for r in range(self.rows):
-            self.pieces.append([0 for _ in range(self.cols)])
-            self.buttons.append([QPushButton("0") for _ in range(self.cols)])
-
         self.initUI()
+        self.initBoardLayout()
 
 
     def do_move(self, row, col):
@@ -104,6 +144,7 @@ class AppContext(ApplicationContext):
         self.reset()
 
     def reset(self):
+        print("Reset!")
         self.board.reset()
         for r in range(self.rows):
             for c in range(self.cols):
@@ -134,23 +175,25 @@ class AppContext(ApplicationContext):
     def gen_clickhandler(self, row, col):
         return lambda _ : self.handle_click(row, col)
 
-    def initUI(self):
-        self.main_window.setWindowTitle(self.main_window.title)
-        self.main_window.setGeometry(self.left, self.top, self.width, self.height)
-
-        wid = QWidget()
+    def initBoardLayout(self):
+        self.wid = QWidget()
         layout = QGridLayout()
         self.grid = layout
 
         for r in range(0,self.rows):
             for c in range(0,self.cols):
                 button = self.buttons[r][c]
-                button.setFixedHeight(250)
+                button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
                 button.clicked.connect(self.gen_clickhandler(r, c))
                 layout.addWidget(button, r,c)
 
-        wid.setLayout(layout)
-        self.main_window.setCentralWidget(wid)
+        self.wid.setLayout(layout)
+        self.main_window.setCentralWidget(self.wid)
+
+
+    def initUI(self):
+        self.main_window.setWindowTitle(self.main_window.title)
+        self.main_window.setGeometry(self.left, self.top, self.width, self.height)
 
         quitAction = QAction("&Quit", self.main_window)
         quitAction.setShortcut('Ctrl+Q')
@@ -170,6 +213,11 @@ class AppContext(ApplicationContext):
         self.whiteAction = whiteAction
         self.blackAction = blackAction
 
+
+        changeBoardAction = QAction("Change Board &Size", self.main_window)
+        changeBoardAction.setShortcut('Ctrl+S')
+        changeBoardAction.triggered.connect(self.change_board_dialog)
+
         menubar = self.main_window.menuBar()
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(quitAction)
@@ -183,6 +231,30 @@ class AppContext(ApplicationContext):
             whiteAction.setChecked(True)
         else:
             blackAction.setChecked(True)
+
+        settingsMenu.addAction(changeBoardAction)
+
+
+
+
+    def change_board_dialog(self):
+        dlg = ChangeBoardDialog(self.main_window)
+        dlg.width_input.setText(str(self.board.cols))
+        dlg.height_input.setText(str(self.board.rows))
+        if dlg.exec_():
+            newHeight = dlg.height_input.text()
+            newWidth = dlg.width_input.text()
+            if (newHeight.isnumeric() and newWidth.isnumeric() and 0 < int(newHeight) and 0 < int(newWidth)):
+                print("New height/width: " + str((newHeight, newWidth)))
+                self.rows = int(newHeight)
+                self.cols = int(newWidth)
+                self.initBoard()
+                self.initBoardLayout()
+                self.reset()
+            else:
+                print("No change..")
+        else:
+            print("Fail")
 
 
     def set_player_color(self, white):
