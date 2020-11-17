@@ -8,8 +8,6 @@ from player import *
 from board import Board
 import sys, random
 
-PLAYER_WHITE = False
-
 class MainWindow(QMainWindow):
     def __init__(self, ctx):
         super(MainWindow, self).__init__()
@@ -39,6 +37,7 @@ class AppContext(ApplicationContext):
         self.buttons = []
         self.pieces = []
         self.next_white = True
+        self.player_white = True
 
         for r in range(self.rows):
             self.pieces.append([0 for _ in range(self.cols)])
@@ -68,7 +67,7 @@ class AppContext(ApplicationContext):
         if (self.turns == self.max_turns):
             self.game_over()
 
-        if ((PLAYER_WHITE and not self.next_white) or(not PLAYER_WHITE and self.next_white)):
+        if ((self.player_white and not self.next_white) or(not self.player_white and self.next_white)):
             self.minmax_move()
 
 
@@ -76,7 +75,7 @@ class AppContext(ApplicationContext):
         self.do_move(row, col)
 
     def minmax_move(self):
-        (row, col) = minmax(self.board, not PLAYER_WHITE, 2)
+        (row, col) = minmax(self.board, not self.player_white, 2)
         self.do_move(row, col)
 
     def random_move(self):
@@ -157,15 +156,49 @@ class AppContext(ApplicationContext):
         quitAction.setShortcut('Ctrl+Q')
         quitAction.triggered.connect(qApp.quit)
 
+
+        whiteAction = QAction("&White", self.main_window)
+        whiteAction.setShortcut('Ctrl+W')
+        whiteAction.triggered.connect(lambda _ : self.set_player_color(True))
+        whiteAction.setCheckable(True)
+
+        blackAction = QAction("&Black", self.main_window)
+        blackAction.setShortcut('Ctrl+B')
+        blackAction.triggered.connect(lambda _ : self.set_player_color(False))
+        blackAction.setCheckable(True)
+
+        self.whiteAction = whiteAction
+        self.blackAction = blackAction
+
         menubar = self.main_window.menuBar()
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(quitAction)
 
+        settingsMenu = menubar.addMenu('&Settings')
+        playerColorMenu = settingsMenu.addMenu('Player Color')
+        playerColorMenu.addAction(whiteAction)
+        playerColorMenu.addAction(blackAction)
+
+        if (self.player_white):
+            whiteAction.setChecked(True)
+        else:
+            blackAction.setChecked(True)
+
+
+    def set_player_color(self, white):
+        self.player_white = white
+        self.whiteAction.setChecked(white)
+        self.blackAction.setChecked(not white)
+        self.check_computer_move()
+
+
+    def check_computer_move(self):
+        if (self.player_white != self.next_white):
+            self.minmax_move()
 
     def run(self):
         self.main_window.show()
-        if (not PLAYER_WHITE):
-            self.minmax_move()
+        self.check_computer_move()
         return self.app.exec_()
 
 if __name__ == '__main__':
