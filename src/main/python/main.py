@@ -94,6 +94,10 @@ class AppContext(ApplicationContext):
             self.board.set_cell(row, col, 1)
             svgWidget = QtSvg.QSvgWidget(self.get_resource('images/black_rook.svg'))
 
+
+
+        svgWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.pieces[row][col] = svgWidget
         self.buttons[row][col].setVisible(False)
         self.grid.addWidget(svgWidget, row, col)
