@@ -1,13 +1,76 @@
+
+##
+## Either fix barracks or remove it
+## Make sure the reset works
+##
+## Next step: separate to server/client even here
+##
+
 from fbs_runtime.application_context.PyQt5 import ApplicationContext, cached_property
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox, QAction, qApp, QDialogButtonBox, QLineEdit, QSizePolicy
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QGroupBox, QDialog, QVBoxLayout, QGridLayout, QMainWindow, QMessageBox, QAction, qApp, QDialogButtonBox, QLineEdit, QSizePolicy, QLabel
+from PyQt5.QtGui import QIcon, QFont, QDrag
+from PyQt5.QtCore import pyqtSlot, QMimeData
+from PyQt5.QtCore import Qt
 from PyQt5 import QtSvg
 
 from player import *
 from board import Board
 
 import sys
+
+class BoardSquare(QtSvg.QSvgWidget):
+    WHITE_SQUARE = 0
+    BLACK_SQUARE = 1
+    GREEN_SQUARE = 2
+    RED_SQUARE = 3
+    WHITE_ROOK = 4
+    BLACK_ROOK = 5
+    PIECES = 6
+
+    def __init__(self, images, background, click):
+        super(QWidget, self).__init__(images[background])
+        self.images = images
+        self.mouseReleaseEvent=click
+
+        self.background = background
+        self.piece = background
+
+        self.label = QLabel(self)
+        self.label.setText("   ")
+        self.label.move(10, 10)
+        self.label.setFont(QFont('Arial', 48))
+
+
+    def reset(self):
+        self.piece = self.background
+        self.load(self.images[self.background])
+        self.label.setText("")
+
+    def setPiece(self, piece):
+        self.piece = piece
+        if piece > 1:
+            self.label.setText("")
+        self.load(self.images[piece])
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, w):
+        return w
+
+    def setScore(self, score):
+        if self.piece < 4:
+            if (score < 0):
+                p = BoardSquare.RED_SQUARE
+            elif (score > 0):
+                p = BoardSquare.GREEN_SQUARE
+            else:
+                p = self.background
+
+            self.piece = p
+            self.load(self.images[p])
+            self.label.setText(str(score))
+            self.adjustSize()
 
 class MainWindow(QMainWindow):
     def __init__(self, ctx):
@@ -37,28 +100,21 @@ class ChangeBoardDialog(QDialog):
 
 
 class AppContext(ApplicationContext):
-
     @cached_property
     def main_window(self):
         return MainWindow(self)
 
     def initBoard(self):
         # We have to destroy old board if existing
-        for bs in self.buttons:
+        for bs in self.squares:
             for b in bs:
                 b.deleteLater()
-        for ps in self.pieces:
-            for p in ps:
-                if p != 0:
-                    p.deleteLater()
 
         self.board = Board(self.rows, self.cols)
-        self.buttons = []
-        self.pieces = []
-        for r in range(self.rows):
-            self.pieces.append([0 for _ in range(self.cols)])
-            self.buttons.append([QPushButton("0") for _ in range(self.cols)])
+        self.squares = []
 
+        for r in range(self.rows):
+            self.squares.append([BoardSquare(self.piece_set, 0, self.gen_clickhandler(r, c)) for c in range(self.cols)])
 
     def __init__(self, rows, cols, max_turns):
         super().__init__()
@@ -71,12 +127,18 @@ class AppContext(ApplicationContext):
         self.rows = rows
         self.cols = cols
         self.max_turns = max_turns*2
-        self.buttons = []
-        self.pieces = []
+        self.squares = []
         self.turns = 0
         self.next_white = True
         self.player_white = True
 
+        self.piece_set = [0] * BoardSquare.PIECES
+        self.piece_set[BoardSquare.WHITE_SQUARE] = self.get_resource('images/solid_white.svg')
+        self.piece_set[BoardSquare.BLACK_SQUARE] = self.get_resource('images/solid_black.svg')
+        self.piece_set[BoardSquare.GREEN_SQUARE] = self.get_resource('images/solid_green.svg')
+        self.piece_set[BoardSquare.RED_SQUARE] = self.get_resource('images/solid_red.svg')
+        self.piece_set[BoardSquare.WHITE_ROOK] = self.get_resource('images/white_rook.svg')
+        self.piece_set[BoardSquare.BLACK_ROOK] = self.get_resource('images/black_rook.svg')
 
         self.initBoard()
         self.initUI()
@@ -87,20 +149,13 @@ class AppContext(ApplicationContext):
         self.turns += 1
         if self.next_white:
             self.next_white = False
-            self.board.set_cell(row, col, -1)
-            svgWidget = QtSvg.QSvgWidget(self.get_resource('images/white_rook.svg'))
+            self.board.set_cell(row, col, 1)
+            self.squares[row][col].setPiece(BoardSquare.WHITE_ROOK)
         else:
             self.next_white = True
-            self.board.set_cell(row, col, 1)
-            svgWidget = QtSvg.QSvgWidget(self.get_resource('images/black_rook.svg'))
+            self.board.set_cell(row, col, -1)
+            self.squares[row][col].setPiece(BoardSquare.BLACK_ROOK)
 
-
-
-        svgWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        self.pieces[row][col] = svgWidget
-        self.buttons[row][col].setVisible(False)
-        self.grid.addWidget(svgWidget, row, col)
         self.updateScores()
         self.grid.update()
 
@@ -112,10 +167,11 @@ class AppContext(ApplicationContext):
 
 
     def handle_click(self, row, col):
-        self.do_move(row, col)
+        if (self.board.get_cell(row, col) == 0):
+            self.do_move(row, col)
 
     def minmax_move(self):
-        (row, col) = minmax(self.board, not self.player_white, 2)
+        (row, col) = minmax(self.board, self.player_white, 2)
         self.do_move(row, col)
 
     def random_move(self):
@@ -132,9 +188,9 @@ class AppContext(ApplicationContext):
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
         if score > 0:
-            title = "Black wins!"
-        elif score < 0:
             title = "White wins!"
+        elif score < 0:
+            title = "Black wins!"
         else:
             title = "Tie!"
 
@@ -147,9 +203,7 @@ class AppContext(ApplicationContext):
         self.board.reset()
         for r in range(self.rows):
             for c in range(self.cols):
-                if self.pieces[r][c] != 0:
-                    self.pieces[r][c].setVisible(False)
-                    self.buttons[r][c].setVisible(True)
+                self.squares[r][c].reset()
         self.updateScores()
         self.grid.update()
         self.turns = 0
@@ -160,15 +214,7 @@ class AppContext(ApplicationContext):
         for r in range(self.rows):
             for c in range(self.cols):
                 score = self.board.get_score(r, c)
-                button = self.buttons[r][c]
-                button.setText(str(score))
-                if score < 0:
-                    button.setStyleSheet("background-color: green")
-                elif score > 0:
-                    button.setStyleSheet("background-color: red")
-                else:
-                    button.setStyleSheet("background-color: gray")
-
+                self.squares[r][c].setScore(score)
 
 
     def gen_clickhandler(self, row, col):
@@ -176,15 +222,23 @@ class AppContext(ApplicationContext):
 
     def initBoardLayout(self):
         self.wid = QWidget()
-        layout = QGridLayout()
-        self.grid = layout
+        boardLayout = QGridLayout()
+        self.grid = boardLayout
 
-        for r in range(0,self.rows):
-            for c in range(0,self.cols):
-                button = self.buttons[r][c]
-                button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                button.clicked.connect(self.gen_clickhandler(r, c))
-                layout.addWidget(button, r,c)
+        for r in range(self.rows):
+            for c in range(self.cols):
+                boardLayout.addWidget(self.squares[r][c], r,c)
+
+        # barracksLayout = QGridLayout()
+        # for c in range(self.cols):
+        #     widget = QtSvg.QSvgWidget(self.get_resource('images/white_rook.svg'))
+        #     widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        #     barracksLayout.addWidget(widget, 0, c)
+
+        layout = QVBoxLayout()
+
+        layout.addLayout(boardLayout)
+        # layout.addLayout(barracksLayout)
 
         self.wid.setLayout(layout)
         self.main_window.setCentralWidget(self.wid)
