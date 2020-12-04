@@ -2,3 +2,5 @@ venv/
 .#install.sh
 src/main/python/__pycache__/
 target/
+
+src/main/python/.#board.py
